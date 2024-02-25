@@ -551,9 +551,9 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                     samples_generated.iloc[-1].species_r2.append(sim_files[1])
                 else:
                     num_reads_plas: int = int(round(total_reads*row[sample]*non_chromosomal))
-                    num_reads_chrom: int = total_reads - num_reads_plas
+                    num_reads_chrom: int = int(round(total_reads*row[sample]*(1 - non_chromosomal)))
                     fastq_name_chrom: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads_chrom}_merged_chrom")
-                    log(f"----Generating {num_reads_chrom} ({round(row[sample],3)} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    log(f"----Generating {num_reads_chrom} ({round(row[sample],3)}*{1-non_chromosomal} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_chrom, 
                                      output_fastq=fastq_name_chrom,
                                      num_reads = num_reads_chrom, 
@@ -570,7 +570,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                     samples_generated.iloc[-1].species_r2.append(sim_files[1])
 
                     fastq_name_plas: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads_plas}_merged_plas")
-                    log(f"----Generating {num_reads_plas} ({round(row[sample],3)} of {total_reads}) plasmid only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    log(f"----Generating {num_reads_plas} ({round(row[sample],3)}*{non_chromosomal} of {total_reads}) plasmid only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_plasmid, 
                                      output_fastq=fastq_name_plas,
                                      num_reads = num_reads_plas, 
