@@ -475,10 +475,10 @@ def merge_simulated_samples(sim_samples: pd.DataFrame, outdir: str):
     sim_samples['final_r2'] = ''
     for i, row in sim_samples.iterrows():
         log(f"----Merging sample {row.full_sample_name} files.", bcolors.BOLD)
-        out_r1: str = os.path.join(outdir, f"{row.full_sample_name}_R1.fastq")
-        out_r2: str = os.path.join(outdir, f"{row.full_sample_name}_R2.fastq")
+        out_r1: str = os.path.join(outdir, f"{row.full_sample_name}_R1.fastq.gz")
+        out_r2: str = os.path.join(outdir, f"{row.full_sample_name}_R2.fastq.gz")
         cmd_r1: str = f"zcat {' '.join(row.species_r1)} | pigz -c > {out_r1}"
-        cmd_r2: str = f"zcat {' '.join(row.species_r2)} | pigz -c > {out_r1}"
+        cmd_r2: str = f"zcat {' '.join(row.species_r2)} | pigz -c > {out_r2}"
         run_command(cmd_r1)
         run_command(cmd_r2)
         sim_samples.iloc[i].final_r1 = out_r1
