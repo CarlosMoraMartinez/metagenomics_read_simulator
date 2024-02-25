@@ -1,4 +1,4 @@
-from typing import List, Callable, Dict
+from typing import List, Set, Dict
 import argparse
 import glob
 import os
@@ -10,14 +10,22 @@ import pandas as pd
 import ftputil
 
 # Example command:
-# python simulate_metagenomes.py -o test1 -p ../data/k2standard_20220607_inspect.txt -d test_genomes1 -i ../data/remove_tanda2_raw_counts.tsv -s dirichlet_prop -u 5 -m mean_abundance -a 10 -b 20
+# python simulate_metagenomes.py -o test1 -p ../data/k2standard_20240112_library_report.tsv -d test_genomes1 -i ../data/remove_tanda2_raw_counts.tsv -s dirichlet_prop -u 5 -m mean_abundance -a 10 -b 20 -x 0.1
 
 RES_SUBDIRS: List[str] = {'tables':'tables', 'merged_genomes':'merged_genomes', 'sampled_genomes':'sampled_genomes', 'final_samples':'final_samples'}
 BASE_URL: str = "ftp.ncbi.nlm.nih.gov"
 DEFAULT_N_READS: int = 1000000
 DEFAULT_READ_LENGTH: int = 150
-DEFAULT_FRAGMENT_LENGTH: int = 300
+DEFAULT_FRAGMENT_LENGTH: int = 500
 DEFAULT_FRAGMENT_SD: int = 50
+DEFAULT_BASE_ERROR_RATE: float = 0
+DEFAULT_MUTATION_RATE: float = 0.001
+DEFAULT_INDEL_FRACTION: float = 0.15
+DEFAULT_PROB_INDEL_EXT: float = 0.3
+DEFAULT_SEED: int = 123
+
+CHROMOSOMAL_NAMES = ['bacteria', 'archaea']
+OTHER_ALLOWED = ['plasmid', 'viral', 'UniVec_Core']
 
 class bcolors:
     HEADER = '\033[95m'
@@ -44,6 +52,17 @@ def create_directories(dirlist: List[str]) -> None:
                 log(f"----Unable to create directory: {d}", bcolors.FAIL)
         else:
             log(f"----{d} already exists", bcolors.WARNING)
+
+
+def run_command(cmd: str):
+    log(f"----Running: {cmd}", bcolors.HEADER)
+    try:
+        os.system(cmd)
+        log(f"---Success: {cmd}", bcolors.OKGREEN)
+    except:
+        log(f"---FAIL: {cmd}", bcolors.FAIL)
+
+
 
 def getFTPRoutesFromKraken2Report(ftp_paths: str) -> List[Dict[str, str]]:
     log(f"Reading FTP routes from Kraken2 database report", bcolors.BOLD)
@@ -196,6 +215,57 @@ def calculateSpeciesProportion(species2sim: pd.DataFrame, sym_mode: str, top_n_s
     log(f"----Success", bcolors.OKGREEN)
     return selected_taxa
 
+
+def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool, 
+                 outdir: str, non_chromosomal: float) -> pd.DataFrame:
+    log(f"Merging genomes for species with several fasta.", bcolors.BOLD)
+    files_all: Set[str] = set()
+    files_chr: Set[str] = set()
+    files_plas: Set[str] = set()
+    species_proportion['merged_file_all'] = ""
+    species_proportion['merged_file_chr'] = ""
+    species_proportion['merged_file_plas'] = ""
+    for i, row in species_proportion.iterrows():
+        if non_chromosomal == -1:
+            files_all = set(map(lambda d: d['route'], row.local_path))
+        elif non_chromosomal == 0:
+            files_chr = set([i['local_path'] for i in row.local_path if i['kingdom'] in CHROMOSOMAL_NAMES])
+        else:
+            files_chr = set([i['local_path'] for i in row.local_path if i['kingdom'] in CHROMOSOMAL_NAMES])
+            files_plas = set([i['local_path'] for i in row.local_path if i['kingdom'] in OTHER_ALLOWED])
+        fname: str
+        localfiles: Set[str]
+        for fname, localfiles in zip(['merged_file_all', 'merged_file_chr', 'merged_file_plas'], [files_all, files_chr, files_plas]):
+            if not localfiles:
+                log(f"----{fname} is not to be created. Skipping.", bcolors.WARNING)
+                continue
+            row[fname] = os.path.join(outdir, f"{row.taxon}_{fname}.fna.gz")
+            if os.path.isfile(row[fname]) and not rewrite_genomes:
+                log(f"----{row[fname]} already exists, skipping merge.", bcolors.OKBLUE)
+                continue
+            elif os.path.isfile(row[fname]):
+                log(f"----{row[fname]} already exists, overwritting.", bcolors.WARNING)
+            cmd: str = f"zcat {' '.join(localfiles)} | pigz -c > {row[fname]}"
+            run_command(cmd)
+    log(f"----Success", bcolors.OKGREEN)
+    return species_proportion
+
+def updateSeed(seed:int = DEFAULT_SEED):
+    return seed*seed-1
+
+def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str, 
+                                      total_reads: int, read_length: int, 
+                                      fragment_length: int, fragment_sdesv: int,
+                                      base_error_rate: float, mutation_rate: float, 
+                                      indel_fraction: float, prob_indel_ext: float,
+                                      seed: int, n_samples: int,
+                                      non_chromosomal: float, n_threads: int) -> pd.DataFrame:
+    log(f"Simulating reads for each sample, separately by species.", bcolors.BOLD)
+    for i, row in species_proportion.iterrows():
+        
+    log(f"----Success", bcolors.OKGREEN)
+
+
 # ----- command line parsing -----
 parser: argparse.ArgumentParser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, 
                                                           description='A tool to simulate metagenome experiments with the same distribution as input experiments')
@@ -217,9 +287,16 @@ group2.add_argument('-b', '--dstr_reps', type = int, help='If sampling distribut
 group3 = parser.add_argument_group('Read simulation options')
 group3.add_argument('-t', '--total_reads', type = int, help='Total number of paired end reads to generate per sample.', default=DEFAULT_N_READS)
 group3.add_argument('-l', '--read_length', type = int, help='Read length', default=DEFAULT_READ_LENGTH)
-group3.add_argument('-f', '--fragment_length', type = int, help='Fragment length', default=DEFAULT_FRAGMENT_LENGTH)
-group3.add_argument('-g', '--fragment_sdesv', type = int, help='Variation in sample length.', default=DEFAULT_FRAGMENT_SD)
+group3.add_argument('-F', '--fragment_length', type = int, help='Fragment length', default=DEFAULT_FRAGMENT_LENGTH)
+group3.add_argument('-F', '--fragment_sdesv', type = int, help='Variation in sample length.', default=DEFAULT_FRAGMENT_SD)
+group3.add_argument('-E', '--base_error_rate', type = int, help='Variation in sample length.', default=DEFAULT_BASE_ERROR_RATE)
+group3.add_argument('-R', '--mutation_rate', type = int, help='Variation in sample length.', default=DEFAULT_MUTATION_RATE)
+group3.add_argument('-T', '--indel_fraction', type = int, help='Variation in sample length.', default=DEFAULT_INDEL_FRACTION)
+group3.add_argument('-X', '--prob_indel_ext', type = int, help='Variation in sample length.', default=DEFAULT_PROB_INDEL_EXT)
+group3.add_argument('-S', '--seed', type = int, help='Variation in sample length.', default=DEFAULT_SEED)
 group3.add_argument('-k', '--n_samples', type = int, help='Number of samples per taxa distribution.', default=1)
+group3.add_argument('-x', '--non_chromosomal', type = float, help='Proportion of non-chromosomal (plasmid, viral, UniVec_Core) reads. If set to -1, proportion will be according to length of sequences in database.', default=0)
+group1.add_argument('-w', '--rewrite_merge', help = 'Rewrite merged genome files for each species if already generated', action=argparse.BooleanOptionalAction, default=False)
 group3.add_argument('-n', '--n_threads', type = int, help='Number of threads', default=1)
 
 def main():
@@ -242,6 +319,14 @@ def main():
     read_length: int = args.read_length
     fragment_length: int = args.fragment_length
     fragment_sdesv: int = args.fragment_sdesv
+    base_error_rate: float = args.base_error_rate
+    mutation_rate: float = args.mutation_rate
+    indel_fraction: float = args.indel_fraction
+    prob_indel_ext: float = args.prob_indel_ext
+    seed: int = args.seed
+    n_samples: int = args.n_samples
+    non_chromosomal: float = args.non_chromosomal
+    rewrite_merge: bool = args.rewrite_merge
     n_threads: int = args.n_threads
     
     create_directories([genomes_path, outdir] + [os.path.join(outdir, s) for s in RES_SUBDIRS.values()])
@@ -266,8 +351,17 @@ def main():
                                              os.path.join(outdir, RES_SUBDIRS['tables']))
 
     # Merge genomes if needed
+    species_proportion = mergeGenomes(species_proportion, rewrite_merge, 
+                                      os.path.join(outdir, RES_SUBDIRS['merged_genomes']), 
+                                      non_chromosomal)
 
     # Calculate reads and simulate
+    species_proportion = simulate_reads_by_species(species_proportion, 
+                                      os.path.join(outdir, RES_SUBDIRS['sampled_genomes']), 
+                                      total_reads, read_length, fragment_length, fragment_sdesv,
+                                      base_error_rate, mutation_rate, indel_fraction, prob_indel_ext,
+                                      seed, n_samples,
+                                      non_chromosomal, n_threads)
 
     # Merge samples
     
