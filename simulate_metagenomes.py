@@ -1,9 +1,8 @@
 from typing import List, Set, Dict, Tuple
 import argparse
-import glob
 import os
-from multiprocessing import Pool
 import re 
+import json
 
 import numpy as np
 import pandas as pd
@@ -686,6 +685,8 @@ def main():
     rewrite_sim_fastq: bool = args.rewrite_sim_fastq
     
     create_directories([genomes_path, outdir, os.path.join(genomes_path, MERGED_GENOMES_PATH)] + [os.path.join(outdir, s) for s in RES_SUBDIRS.values()])
+    with open(os.path.join(outdir, 'commandline_args.txt'), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
 
     #Read Kraken2 database report to get the NCBI FTP paths
     ftproutes: List[Dict[str, str]] = getFTPRoutesFromKraken2Report(ftp_paths)
