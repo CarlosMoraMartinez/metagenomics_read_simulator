@@ -306,7 +306,7 @@ def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool,
                 log(f"----{fname} is not to be created. Skipping.", bcolors.WARNING)
                 continue
             if len(localfiles) == 1:
-                log(f"----{fname} has only 1 filename: {localfiles[0]}. Skipping merge.", bcolors.OKBLUE)
+                log(f"----{fname} has only 1 filename: {localfiles}. Skipping merge.", bcolors.OKBLUE)
                 species_proportion.loc[i, fname] = localfiles[0]
                 continue
             merged_fname: str = os.path.join(outdir, f"{row.taxon}_{fname}.fna.gz")
