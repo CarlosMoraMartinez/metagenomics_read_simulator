@@ -314,7 +314,7 @@ def calculateSpeciesProportion(species2sim: pd.DataFrame, sym_mode: str, top_n_s
 
 def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List[Tuple[str, Set[str]]]:
     """Groups all the fasta files from a single species in order to concatenate them. 
-    If non_chromosomal == -1, it groups all the files together. 
+    If non_chromosomal == 2, it groups all the files together. 
     If non_chromosomal == 0, only groups the cromosomal fasta files. 
     Otherwise, it groups chromosomal and plasmid/viral files separately
 
@@ -331,7 +331,7 @@ def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List
     files_all: Set[str] = set()
     files_chr: Set[str] = set()
     files_plas: Set[str] = set()
-    if non_chromosomal == -1:
+    if non_chromosomal == 2:
         files_all = set(map(lambda d: d['local_path'], row.local_path))
         files_chr = set()
         files_plas = set()
@@ -513,7 +513,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                                       'species_r2': []}, ignore_index=True)
             log(f"Generating sample {sample}, rep {rep}", bcolors.BOLD)
             for i, row in species_proportion.iterrows():
-                if non_chromosomal == -1:
+                if non_chromosomal == 2:
                     num_reads: int = int(round(total_reads*row[sample]))
                     fastq_name: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads}_merged_all")
                     log(f"----Generating {num_reads} ({round(row[sample],3)} of {total_reads}) chr+plasmid reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
@@ -648,7 +648,7 @@ group3.add_argument('-T', '--indel_fraction', type = int, help='Variation in sam
 group3.add_argument('-X', '--prob_indel_ext', type = int, help='Variation in sample length.', default=DEFAULT_PROB_INDEL_EXT)
 group3.add_argument('-S', '--seed', type = int, help='Variation in sample length.', default=DEFAULT_SEED)
 group3.add_argument('-k', '--n_samples', type = int, help='Number of samples per taxa distribution.', default=1)
-group3.add_argument('-x', '--non_chromosomal', type = float, help='Proportion of non-chromosomal (plasmid, viral, UniVec_Core) reads. If set to -1, proportion will be according to length of sequences in database.', default=0)
+group3.add_argument('-x', '--non_chromosomal', type = float, help='Proportion of non-chromosomal (plasmid, viral, UniVec_Core) reads. If set to 2, proportion will be according to length of sequences in database.', default=0)
 group1.add_argument('-w', '--rewrite_merge', help = 'Rewrite merged genome files for each species if already generated', action=argparse.BooleanOptionalAction, default=False)
 group3.add_argument('-n', '--n_threads', type = int, help='Number of threads', default=1)
 group1.add_argument('-y', '--rewrite_sim_fastq', help = 'Do not rewrite simulated fastq if already exist', action=argparse.BooleanOptionalAction, default=False)
