@@ -54,16 +54,16 @@ def create_directories(dirlist: List[str]) -> None:
         else:
             log(f"----{d} already exists", bcolors.WARNING)
 
-
 def run_command(cmd: str):
     log(f"----Running: {cmd}", bcolors.HEADER)
     try:
-        os.system(cmd)
-        log(f"---Success: {cmd}", bcolors.OKGREEN)
+        exitcode: int = os.system(cmd)
+        if exitcode == 0:
+            log(f"---Success: {cmd}", bcolors.OKGREEN)
+        else:
+            log(f"---FAIL {exitcode}: {cmd}", bcolors.FAIL)
     except:
         log(f"---FAIL: {cmd}", bcolors.FAIL)
-
-
 
 def getFTPRoutesFromKraken2Report(ftp_paths: str) -> List[Dict[str, str]]:
     """_summary_
@@ -312,7 +312,6 @@ def calculateSpeciesProportion(species2sim: pd.DataFrame, sym_mode: str, top_n_s
     log(f"----Success", bcolors.OKGREEN)
     return selected_taxa
 
-
 def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List[Tuple[str, Set[str]]]:
     """Groups all the fasta files from a single species in order to concatenate them. 
     If non_chromosomal == -1, it groups all the files together. 
@@ -328,6 +327,7 @@ def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List
             1) the name of the group (merged_all, merged_chrom or merged_plasmid) and
             2) a set of unique fasta files to concatenate
     """
+    log(f"----Getting files of taxon {row.taxon} to merge with non chromosomal set to: {non_chromosomal}", bcolors.OKCYAN)
     files_all: Set[str] = set()
     files_chr: Set[str] = set()
     files_plas: Set[str] = set()
@@ -344,6 +344,7 @@ def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List
         files_chr = set([i['local_path'] for i in row.local_path if i['kingdom'] in CHROMOSOMAL_NAMES])
         files_plas = set([i['local_path'] for i in row.local_path if i['kingdom'] in OTHER_ALLOWED])
     files2generate:  List[Tuple[str, Set[str]]] = [i for i in zip(('merged_all', 'merged_chrom', 'merged_plasmid'), (files_all, files_chr, files_plas))]
+    #print(files2generate)
     return files2generate
 
 def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool, 
@@ -375,10 +376,10 @@ def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool,
         localfiles: Set[str]
         for fname, localfiles in files_2_generate:
             if not localfiles:
-                log(f"----{fname} is not to be created. Skipping.", bcolors.WARNING)
+                log(f"----{fname} is not to be created or does not exist. Skipping.", bcolors.WARNING)
                 continue
             if len(localfiles) == 1:
-                log(f"----{fname} has only 1 filename: {localfiles}. Skipping merge.", bcolors.OKBLUE)
+                log(f"----{fname} has only 1 filename: {list(localfiles)[0]}. Skipping merge.", bcolors.OKBLUE)
                 species_proportion.loc[i, fname] = list(localfiles)[0]
                 continue
             merged_fname: str = os.path.join(outdir, f"{row.taxon}_{fname}.fna.gz")
@@ -403,7 +404,6 @@ def updateSeed(seed:int = DEFAULT_SEED):
         _type_: _description_
     """
     return 3*seed-1
-
 
 def wgsim_get_sample(input_fasta: str, output_fastq: str,
                      num_reads: int, read_length_r1: int, read_length_r2: int, 
@@ -531,7 +531,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                                      seed=sample_seed)
                     samples_generated.iloc[-1].species_r1.append(sim_files[0])
                     samples_generated.iloc[-1].species_r2.append(sim_files[1])
-                elif non_chromosomal == 0:
+                elif non_chromosomal == 0 or not row.merged_plasmid:
                     num_reads: int = int(round(total_reads*row[sample]))
                     fastq_name: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads}_merged_chrom")
                     log(f"----Generating {num_reads} ({round(row[sample],3)} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
@@ -590,7 +590,6 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
         
     log(f"----Success", bcolors.OKGREEN)
     return samples_generated
-
 
 def merge_simulated_samples(sim_samples: pd.DataFrame, outdir: str):
     """_summary_
