@@ -66,6 +66,14 @@ def run_command(cmd: str):
 
 
 def getFTPRoutesFromKraken2Report(ftp_paths: str) -> List[Dict[str, str]]:
+    """_summary_
+
+    Args:
+        ftp_paths (str): _description_
+
+    Returns:
+        List[Dict[str, str]]: _description_
+    """
     log(f"Reading FTP routes from Kraken2 database report", bcolors.BOLD)
     res : List[Dict[str, str]] = []
     with open(ftp_paths, 'r') as ftpdirs:
@@ -84,6 +92,18 @@ def downloadGenomes(ftproutes: List[Dict[str, str]],
                     non_chromosomal: float,
                     rewrite_genomes: bool = True, 
                     url: str = BASE_URL) -> List[Dict[str, str]]:
+    """_summary_
+
+    Args:
+        ftproutes (List[Dict[str, str]]): _description_
+        genomes_path (str): _description_
+        non_chromosomal (float): _description_
+        rewrite_genomes (bool, optional): _description_. Defaults to True.
+        url (str, optional): _description_. Defaults to BASE_URL.
+
+    Returns:
+        List[Dict[str, str]]: _description_
+    """
     log(f"Downloading genomes from NCBI FTP to {genomes_path}", bcolors.BOLD)
     if not os.path.isdir(genomes_path):
         os.mkdir(genomes_path)
@@ -145,6 +165,16 @@ def find_genomes(taxon: str, ftproutes: List[Dict[str, str]]) -> List[str]:
     return [genome for genome in ftproutes if taxon in genome['species']]
 
 def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: str = './') -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        input_table (str): _description_
+        ftproutes (List[Dict[str, str]]): _description_
+        outdir (str, optional): _description_. Defaults to './'.
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     log(f"Reading species table to simulate", bcolors.BOLD)
 
     species2sim: pd.DataFrame = pd.read_csv(input_table, sep='\t')    
@@ -165,6 +195,14 @@ def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: s
     return present_species
 
 def calculateAbundances(species2sim: pd.DataFrame) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        species2sim (pd.DataFrame): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     if species2sim.shape[1] > 4:
         sampledata = species2sim.drop(['taxon', 'local_path', 'num_genomes'], axis=1).apply(lambda x: x/sum(x))
         samplenames = sampledata.columns.tolist()
@@ -181,6 +219,17 @@ def calculateAbundances(species2sim: pd.DataFrame) -> pd.DataFrame:
     return sampledata
 
 def simulate_dirichlet_samples(props: np.array, size: int, n_samples: int, params: str) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        props (np.array): _description_
+        size (int): _description_
+        n_samples (int): _description_
+        params (str): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     if props.shape[0] == 0:
         alpha: List[float] = [float(params)]*size
     else:
@@ -190,13 +239,36 @@ def simulate_dirichlet_samples(props: np.array, size: int, n_samples: int, param
     return distribs_df
 
 def simulate_single_species(top_n_species: int, taxanames: List[str]) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        top_n_species (int): _description_
+        taxanames (List[str]): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     distribs: np.array = np.diag(np.ones(top_n_species)) 
     taxanames = [re.sub(r'[^a-zA-Z0-9\_]', '', s) for s in taxanames]
     distribs_df: pd.DataFrame = pd.DataFrame(distribs, columns=[f"D{i}_{t}" for i, t in enumerate(taxanames)])
     return distribs_df
 
 def calculateSpeciesProportion(species2sim: pd.DataFrame, sym_mode: str, top_n_species: int, mode_select_species: str, 
-                               dstr_args: str, dstr_reps: int, outdir: str = "./") -> pd.DataFrame:    
+                               dstr_args: str, dstr_reps: int, outdir: str = "./") -> pd.DataFrame:   
+    """_summary_
+
+    Args:
+        species2sim (pd.DataFrame): _description_
+        sym_mode (str): _description_
+        top_n_species (int): _description_
+        mode_select_species (str): _description_
+        dstr_args (str): _description_
+        dstr_reps (int): _description_
+        outdir (str, optional): _description_. Defaults to "./".
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     log(f"Calculating simulated proportions", bcolors.BOLD)
     log(f"----Mode: {sym_mode}", bcolors.OKCYAN)
     log(f"----Top n species: {top_n_species}", bcolors.OKCYAN)
@@ -322,6 +394,14 @@ def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool,
     return species_proportion
 
 def updateSeed(seed:int = DEFAULT_SEED):
+    """_summary_
+
+    Args:
+        seed (int, optional): _description_. Defaults to DEFAULT_SEED.
+
+    Returns:
+        _type_: _description_
+    """
     return 3*seed-1
 
 
@@ -332,6 +412,26 @@ def wgsim_get_sample(input_fasta: str, output_fastq: str,
                      indel_fraction: float, prob_indel_ext: float,
                      rewrite_sim_fastq: bool,
                      seed: int) -> Tuple[str, str]:
+    """_summary_
+
+    Args:
+        input_fasta (str): _description_
+        output_fastq (str): _description_
+        num_reads (int): _description_
+        read_length_r1 (int): _description_
+        read_length_r2 (int): _description_
+        fragment_length (int): _description_
+        fragment_sdesv (int): _description_
+        base_error_rate (float): _description_
+        mutation_rate (float): _description_
+        indel_fraction (float): _description_
+        prob_indel_ext (float): _description_
+        rewrite_sim_fastq (bool): _description_
+        seed (int): _description_
+
+    Returns:
+        Tuple[str, str]: _description_
+    """
     r1: str = f"{output_fastq}_R1.fastq"
     r2: str = f"{output_fastq}_R2.fastq"
     if os.path.isfile(r1 + '.gz') or os.path.isfile(r2 + '.gz'):
@@ -368,6 +468,29 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                                       seed: int, n_samples: int,
                                       non_chromosomal: float, rewrite_sim_fastq: bool,
                                       n_threads: int) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        species_proportion (pd.DataFrame): _description_
+        outdir (str): _description_
+        total_reads (int): _description_
+        read_length_r1 (int): _description_
+        read_length_r2 (int): _description_
+        fragment_length (int): _description_
+        fragment_sdesv (int): _description_
+        base_error_rate (float): _description_
+        mutation_rate (float): _description_
+        indel_fraction (float): _description_
+        prob_indel_ext (float): _description_
+        seed (int): _description_
+        n_samples (int): _description_
+        non_chromosomal (float): _description_
+        rewrite_sim_fastq (bool): _description_
+        n_threads (int): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     log(f"Simulating reads for each sample, separately by species.", bcolors.BOLD)
     sample_regex: re.Pattern = re.compile('^D[0-9]+_')
     sample_names: List[str] = [i for i in species_proportion.columns if sample_regex.match(i)]
@@ -393,7 +516,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                 if non_chromosomal == -1:
                     num_reads: int = int(round(total_reads*row[sample]))
                     fastq_name: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads}_merged_all")
-                    log(f"----Generating {num_reads} ({row[sample]} of {total_reads}) chr+plasmid reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    log(f"----Generating {num_reads} ({round(row[sample],3)} of {total_reads}) chr+plasmid reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_all, 
                                      output_fastq=fastq_name,
                                      num_reads = num_reads, 
@@ -411,7 +534,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                 elif non_chromosomal == 0:
                     num_reads: int = int(round(total_reads*row[sample]))
                     fastq_name: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads}_merged_chrom")
-                    log(f"----Generating {num_reads} ({row[sample]} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    log(f"----Generating {num_reads} ({round(row[sample],3)} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_chrom, 
                                      output_fastq=fastq_name,
                                      num_reads = num_reads, 
@@ -430,7 +553,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                     num_reads_plas: int = int(round(total_reads*row[sample]*non_chromosomal))
                     num_reads_chrom: int = total_reads - num_reads_plas
                     fastq_name_chrom: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads_chrom}_merged_chrom")
-                    log(f"----Generating {num_reads_chrom} ({row[sample]} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    log(f"----Generating {num_reads_chrom} ({round(row[sample],3)} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_chrom, 
                                      output_fastq=fastq_name_chrom,
                                      num_reads = num_reads_chrom, 
@@ -447,7 +570,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                     samples_generated.iloc[-1].species_r2.append(sim_files[1])
 
                     fastq_name_plas: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads_plas}_merged_plas")
-                    log(f"----Generating {num_reads_plas} ({row[sample]} of {total_reads}) plasmid only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    log(f"----Generating {num_reads_plas} ({round(row[sample],3)} of {total_reads}) plasmid only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_plasmid, 
                                      output_fastq=fastq_name_plas,
                                      num_reads = num_reads_plas, 
@@ -470,6 +593,15 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
 
 
 def merge_simulated_samples(sim_samples: pd.DataFrame, outdir: str):
+    """_summary_
+
+    Args:
+        sim_samples (pd.DataFrame): _description_
+        outdir (str): _description_
+
+    Returns:
+        _type_: _description_
+    """
     log(f"Merging simulated reads into final fastq files.", bcolors.BOLD)
     sim_samples['final_r1'] = ''
     sim_samples['final_r2'] = ''
