@@ -38,31 +38,43 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-def log(msg: str, col: bcolors = bcolors.BOLD):
-    print(col + msg + bcolors.ENDC)
+class Logger:
+    def __init__(self, logname: str = None) -> None:
+        self.logname: str = logname
+    def set_file(self, logname: str) -> None:
+        self.logname = logname
+    def log2file(self, msg: str):
+        if self.logname is not None:
+            with open(self.logname, "a") as fo:
+                fo.write(msg + '\n')
+    def log(self, msg: str, col: bcolors = bcolors.BOLD) -> None:
+        print(col + msg + bcolors.ENDC)
+        self.log2file(msg)
+
+logger = Logger()
 
 def create_directories(dirlist: List[str]) -> None:
-    log("Creating directories", bcolors.BOLD)
+    logger.log("Creating directories", bcolors.BOLD)
     for d in dirlist:
         if not os.path.isdir(d):
             try:
                 os.mkdir(d)
-                log(f"----{d} created", bcolors.OKGREEN)
+                logger.log(f"----{d} created", bcolors.OKGREEN)
             except:
-                log(f"----Unable to create directory: {d}", bcolors.FAIL)
+                logger.log(f"----Unable to create directory: {d}", bcolors.FAIL)
         else:
-            log(f"----{d} already exists", bcolors.WARNING)
+            logger.log(f"----{d} already exists", bcolors.WARNING)
 
 def run_command(cmd: str):
-    log(f"----Running: {cmd}", bcolors.HEADER)
+    logger.log(f"----Running command:\n{cmd}", bcolors.HEADER)
     try:
         exitcode: int = os.system(cmd)
         if exitcode == 0:
-            log(f"---Success: {cmd}", bcolors.OKGREEN)
+            logger.log(f"---Success: {cmd}", bcolors.OKGREEN)
         else:
-            log(f"---FAIL {exitcode}: {cmd}", bcolors.FAIL)
+            logger.log(f"---FAIL {exitcode}: {cmd}", bcolors.FAIL)
     except:
-        log(f"---FAIL: {cmd}", bcolors.FAIL)
+        logger.log(f"---FAIL: {cmd}", bcolors.FAIL)
 
 def getFTPRoutesFromKraken2Report(ftp_paths: str) -> List[Dict[str, str]]:
     """Parses the Kraken2 database report and returns a list of dictionaries.
@@ -77,7 +89,7 @@ def getFTPRoutesFromKraken2Report(ftp_paths: str) -> List[Dict[str, str]]:
                                 'species' is used to match against input OTU table, to select interest taxa.
                                 'route' is the path to the genome in the NCBI FTP. 
     """
-    log(f"Reading FTP routes from Kraken2 database report", bcolors.BOLD)
+    logger.log(f"Reading FTP routes from Kraken2 database report", bcolors.BOLD)
     res : List[Dict[str, str]] = []
     with open(ftp_paths, 'r') as ftpdirs:
         for l in ftpdirs:
@@ -87,7 +99,7 @@ def getFTPRoutesFromKraken2Report(ftp_paths: str) -> List[Dict[str, str]]:
             assert l[1].startswith(">"), f"----Error: Species does not start with '>': {l[1]}"
             assert l[2].startswith("ftp"), f"----Error: Route does not start with 'ftp': {l[2]}"
             res.append(dict([(i, j) for i, j in zip(["kingdom", "species", "route"], l)])) 
-    log(f"----Success", bcolors.OKGREEN)
+    logger.log(f"----Success", bcolors.OKGREEN)
     return res
 
 def downloadGenomes(ftproutes: List[Dict[str, str]], 
@@ -107,7 +119,7 @@ def downloadGenomes(ftproutes: List[Dict[str, str]],
     Returns:
         List[Dict[str, str]]: _description_
     """
-    log(f"Downloading genomes from NCBI FTP to {genomes_path}", bcolors.BOLD)
+    logger.log(f"Downloading genomes from NCBI FTP to {genomes_path}", bcolors.BOLD)
     if not os.path.isdir(genomes_path):
         os.mkdir(genomes_path)
     ftp_host = ftputil.FTPHost(url, user='anonymous', passwd='@anonymous')
@@ -117,24 +129,24 @@ def downloadGenomes(ftproutes: List[Dict[str, str]],
         remote_path: str = genome['route'].replace(f"ftp://{url}", "").replace("//", "/")
         new_path: str = os.path.join(os.path.abspath(genomes_path), fname)
         genome["local_path"] = new_path
-        log(f"Downloading: {remote_path}\n--to: {new_path}", bcolors.HEADER)
+        logger.log(f"Downloading: {remote_path}\n--to: {new_path}", bcolors.HEADER)
         if genome['kingdom'] in OTHER_ALLOWED and non_chromosomal == 0:
-            log("----Non-chromosomal, skipping.", bcolors.WARNING)
+            logger.log("----Non-chromosomal, skipping.", bcolors.WARNING)
             genome["downloaded"] = "discard"
             continue            
         elif os.path.isfile(new_path) and not rewrite_genomes:
-            log("----already downloaded, skipping.", bcolors.OKBLUE)
+            logger.log("----already downloaded, skipping.", bcolors.OKBLUE)
             genome["downloaded"] = "old"
             continue
         elif os.path.isfile(new_path):
-            log("----WARNING: already downloaded, overwritting.", bcolors.WARNING)
+            logger.log("----WARNING: already downloaded, overwritting.", bcolors.WARNING)
         try:
             ftp_host.download(remote_path, new_path)
             genome["downloaded"] = "new"
-            log("----download finished.", bcolors.OKGREEN)
+            logger.log("----download finished.", bcolors.OKGREEN)
         except:
             genome["downloaded"] = "failed"
-            log("----download FAILED.", bcolors.FAIL)
+            logger.log("----download FAILED.", bcolors.FAIL)
     return ftproutes
 
 def downloadGenomes_all(speciestab: pd.DataFrame, genomes_path: str, 
@@ -152,7 +164,7 @@ def downloadGenomes_all(speciestab: pd.DataFrame, genomes_path: str,
     Returns:
         List[Dict[str, str]]: _description_
     """
-    log(f"Downloading all genomes to: {genomes_path}", bcolors.BOLD)
+    logger.log(f"Downloading all genomes to: {genomes_path}", bcolors.BOLD)
     for index, row in speciestab.iterrows():
         spname: str = re.sub(r'[^a-zA-Z0-9\_]', '', row.taxon)
         row.local_path = downloadGenomes(ftproutes=row.local_path, 
@@ -160,7 +172,7 @@ def downloadGenomes_all(speciestab: pd.DataFrame, genomes_path: str,
                                          non_chromosomal=non_chromosomal, 
                                          rewrite_genomes=rewrite_genomes, 
                                          url=url)
-    log("----All downloads finished.", bcolors.OKGREEN)
+    logger.log("----All downloads finished.", bcolors.OKGREEN)
     return speciestab
 
 def find_genomes(taxon: str, ftproutes: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -188,12 +200,12 @@ def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: s
     Returns:
         pd.DataFrame: Dataframe in the same format as input_table, with columns for the ftp routes for each taxon.
     """
-    log(f"Reading species table to simulate", bcolors.BOLD)
+    logger.log(f"Reading species table to simulate", bcolors.BOLD)
 
     species2sim: pd.DataFrame = pd.read_csv(input_table, sep='\t')    
     species2sim.columns = species2sim.columns.str.replace(species2sim.columns[0], "taxon")
 
-    log(f"----Matching with genomes", bcolors.WARNING)
+    logger.log(f"----Matching with genomes", bcolors.WARNING)
     species2sim['local_path'] = species2sim.apply(lambda x: find_genomes(x.taxon.replace('_', ' '), ftproutes), axis=1)
     species2sim['num_genomes'] = species2sim.apply(lambda x: len(x.local_path), axis=1)
 
@@ -204,7 +216,7 @@ def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: s
     tab2write['local_path'] = tab2write.apply(lambda x: '|'.join([str(i) for i in x.local_path]), axis=1)
     tab2write.to_csv(os.path.join(outdir, 'all_species_with_ftp_path.tsv'), sep='\t')
 
-    log(f"----Success", bcolors.OKGREEN)
+    logger.log(f"----Success", bcolors.OKGREEN)
     return present_species
 
 def calculateAbundances(species2sim: pd.DataFrame) -> pd.DataFrame:
@@ -284,12 +296,12 @@ def calculateSpeciesProportion(species2sim: pd.DataFrame, sym_mode: str, top_n_s
     Returns:
         pd.DataFrame: _description_
     """
-    log(f"Calculating simulated proportions", bcolors.BOLD)
-    log(f"----Mode: {sym_mode}", bcolors.OKCYAN)
-    log(f"----Top n species: {top_n_species}", bcolors.OKCYAN)
-    log(f"----Species Selection Mode: {mode_select_species}", bcolors.OKCYAN)
-    log(f"----Distribution arguments: {dstr_args}", bcolors.OKCYAN)
-    log(f"----Distribution samples: {dstr_args}", bcolors.OKCYAN)
+    logger.log(f"Calculating simulated proportions", bcolors.BOLD)
+    logger.log(f"----Mode: {sym_mode}", bcolors.OKCYAN)
+    logger.log(f"----Top n species: {top_n_species}", bcolors.OKCYAN)
+    logger.log(f"----Species Selection Mode: {mode_select_species}", bcolors.OKCYAN)
+    logger.log(f"----Distribution arguments: {dstr_args}", bcolors.OKCYAN)
+    logger.log(f"----Distribution samples: {dstr_args}", bcolors.OKCYAN)
     sampledata = calculateAbundances(species2sim)
     if top_n_species > sampledata.shape[0] or top_n_species < 1:
         top_n_species = sampledata.shape[0]
@@ -324,7 +336,7 @@ def calculateSpeciesProportion(species2sim: pd.DataFrame, sym_mode: str, top_n_s
         selected_taxa['D1'] = selected_taxa['base_proportion']
     selected_taxa.to_csv(os.path.join(outdir, f"simulated_proportions_top{top_n_species}_{sym_mode}_dstr{dstr_args}"))
 
-    log(f"----Success", bcolors.OKGREEN)
+    logger.log(f"----Success", bcolors.OKGREEN)
     return selected_taxa
 
 def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List[Tuple[str, Set[str]]]:
@@ -342,7 +354,7 @@ def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List
             1) the name of the group (merged_all, merged_chrom or merged_plasmid) and
             2) a set of unique fasta files to concatenate
     """
-    log(f"----Getting files of taxon {row.taxon} to merge with non chromosomal set to: {non_chromosomal}", bcolors.OKCYAN)
+    logger.log(f"----Getting files of taxon {row.taxon} to merge with non chromosomal set to: {non_chromosomal}", bcolors.OKCYAN)
     files_all: Set[str] = set()
     files_chr: Set[str] = set()
     files_plas: Set[str] = set()
@@ -381,7 +393,7 @@ def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool,
         pd.DataFrame: species_proportion dataframe with the paths of the files with merged genomes.
     """
 
-    log(f"Merging genomes for species with several fasta. Non-chromosomal DNA is set to {non_chromosomal}", bcolors.BOLD)
+    logger.log(f"Merging genomes for species with several fasta. Non-chromosomal DNA is set to {non_chromosomal}", bcolors.BOLD)
     species_proportion['merged_all'] = ""
     species_proportion['merged_chrom'] = ""
     species_proportion['merged_plasmid'] = ""
@@ -391,22 +403,22 @@ def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool,
         localfiles: Set[str]
         for fname, localfiles in files_2_generate:
             if not localfiles:
-                log(f"----{fname} is not to be created or does not exist. Skipping.", bcolors.WARNING)
+                logger.log(f"----{fname} is not to be created or does not exist. Skipping.", bcolors.WARNING)
                 continue
             if len(localfiles) == 1:
-                log(f"----{fname} has only 1 filename: {list(localfiles)[0]}. Skipping merge.", bcolors.OKBLUE)
+                logger.log(f"----{fname} has only 1 filename: {list(localfiles)[0]}. Skipping merge.", bcolors.OKBLUE)
                 species_proportion.loc[i, fname] = list(localfiles)[0]
                 continue
             merged_fname: str = os.path.join(outdir, f"{row.taxon}_{fname}.fna.gz")
             species_proportion.loc[i, fname] = merged_fname
             if os.path.isfile(merged_fname) and not rewrite_genomes:
-                log(f"----{merged_fname} already exists, skipping merge.", bcolors.OKBLUE)
+                logger.log(f"----{merged_fname} already exists, skipping merge.", bcolors.OKBLUE)
                 continue
             elif os.path.isfile(merged_fname):
-                log(f"----{merged_fname} already exists, overwritting.", bcolors.WARNING)
+                logger.log(f"----{merged_fname} already exists, overwritting.", bcolors.WARNING)
             cmd: str = f"zcat {' '.join(localfiles)} | pigz -c > {merged_fname}"
             run_command(cmd)
-    log(f"----Success", bcolors.OKGREEN)
+    logger.log(f"----Success", bcolors.OKGREEN)
     return species_proportion
 
 def updateSeed(seed:int = DEFAULT_SEED):
@@ -452,10 +464,10 @@ def wgsim_get_sample(input_fasta: str, output_fastq: str,
     if os.path.isfile(r1 + '.gz') or os.path.isfile(r2 + '.gz'):
         if rewrite_sim_fastq:
             cmd_rm: str = f"rm {r1}.gz {r2}.gz"
-            log(f"----Species files already exist. Removing", bcolors.WARNING)
+            logger.log(f"----Species files already exist. Removing", bcolors.WARNING)
             run_command(cmd_rm)
         else:
-            log(f"----Species files already exist. Skipping WGSIM", bcolors.WARNING)
+            logger.log(f"----Species files already exist. Skipping WGSIM", bcolors.WARNING)
             return(r1 + '.gz', r2 + '.gz')
     
     logfile: str = f"{output_fastq}_WGSIM.log"
@@ -507,7 +519,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
     Returns:
         pd.DataFrame: Data frame with data for simulated samples, including paths to the separate fastq for each species.
     """
-    log(f"Simulating reads for each sample, separately by species.", bcolors.BOLD)
+    logger.log(f"Simulating reads for each sample, separately by species.", bcolors.BOLD)
     sample_regex: re.Pattern = re.compile('^D[0-9]+_')
     sample_names: List[str] = [i for i in species_proportion.columns if sample_regex.match(i)]
     sample: str
@@ -529,15 +541,15 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                                       'sample_dir': sample_dir,
                                       'species_r1': [],
                                       'species_r2': []}, ignore_index=True)
-            log(f"Generating sample {sample}, rep {rep}", bcolors.BOLD)
+            logger.log(f"Generating sample {sample}, rep {rep}", bcolors.BOLD)
             for i, row in species_proportion.iterrows():
                 if row[sample] == 0:
-                    log(f"----Skipping sample {sample}, rep {rep}, species {row.taxon} because proportion is {row[sample]}", bcolors.WARNING)
+                    logger.log(f"----Skipping sample {sample}, rep {rep}, species {row.taxon} because proportion is {row[sample]}", bcolors.WARNING)
                     continue
                 if non_chromosomal == 2:
                     num_reads: int = int(round(total_reads*row[sample]))
                     fastq_name: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads}_merged_all")
-                    log(f"----Generating {num_reads} ({round(row[sample],3)} of {total_reads}) chr+plasmid reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    logger.log(f"----Generating {num_reads} ({round(row[sample],3)} of {total_reads}) chr+plasmid reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_all, 
                                      output_fastq=fastq_name,
                                      num_reads = num_reads, 
@@ -555,7 +567,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                 elif non_chromosomal == 0 or not row.merged_plasmid:
                     num_reads: int = int(round(total_reads*row[sample]))
                     fastq_name: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads}_merged_chrom")
-                    log(f"----Generating {num_reads} ({round(row[sample],3)} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    logger.log(f"----Generating {num_reads} ({round(row[sample],3)} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_chrom, 
                                      output_fastq=fastq_name,
                                      num_reads = num_reads, 
@@ -574,7 +586,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                     num_reads_plas: int = int(round(total_reads*row[sample]*non_chromosomal))
                     num_reads_chrom: int = int(round(total_reads*row[sample]*(1 - non_chromosomal)))
                     fastq_name_chrom: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads_chrom}_merged_chrom")
-                    log(f"----Generating {num_reads_chrom} ({round(row[sample],3)}*{1-non_chromosomal} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    logger.log(f"----Generating {num_reads_chrom} ({round(row[sample],3)}*{1-non_chromosomal} of {total_reads}) chromosomal only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_chrom, 
                                      output_fastq=fastq_name_chrom,
                                      num_reads = num_reads_chrom, 
@@ -591,7 +603,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                     samples_generated.iloc[-1].species_r2.append(sim_files[1])
 
                     fastq_name_plas: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads_plas}_merged_plas")
-                    log(f"----Generating {num_reads_plas} ({round(row[sample],3)}*{non_chromosomal} of {total_reads}) plasmid only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
+                    logger.log(f"----Generating {num_reads_plas} ({round(row[sample],3)}*{non_chromosomal} of {total_reads}) plasmid only reads for sample {sample}, rep {rep}, species {row.taxon}", bcolors.OKCYAN)
                     sim_files = wgsim_get_sample(input_fasta=row.merged_plasmid, 
                                      output_fastq=fastq_name_plas,
                                      num_reads = num_reads_plas, 
@@ -609,7 +621,7 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
 
             sample_seed = updateSeed(sample_seed)
         
-    log(f"----Success", bcolors.OKGREEN)
+    logger.log(f"----Success", bcolors.OKGREEN)
     return samples_generated
 
 def merge_simulated_samples(sim_samples: pd.DataFrame, outdir: str):
@@ -622,11 +634,11 @@ def merge_simulated_samples(sim_samples: pd.DataFrame, outdir: str):
     Returns:
         _type_: _description_
     """
-    log(f"Merging simulated reads into final fastq files.", bcolors.BOLD)
+    logger.log(f"Merging simulated reads into final fastq files.", bcolors.BOLD)
     sim_samples['final_r1'] = ''
     sim_samples['final_r2'] = ''
     for i, row in sim_samples.iterrows():
-        log(f"----Merging sample {row.full_sample_name} files.", bcolors.BOLD)
+        logger.log(f"----Merging sample {row.full_sample_name} files.", bcolors.BOLD)
         out_r1: str = os.path.join(outdir, f"{row.full_sample_name}_R1.fastq.gz")
         out_r2: str = os.path.join(outdir, f"{row.full_sample_name}_R2.fastq.gz")
         cmd_r1: str = f"zcat {' '.join(row.species_r1)} | pigz -c > {out_r1}"
@@ -635,7 +647,7 @@ def merge_simulated_samples(sim_samples: pd.DataFrame, outdir: str):
         run_command(cmd_r2)
         sim_samples.iloc[i].final_r1 = out_r1
         sim_samples.iloc[i].final_r2 = out_r2
-    log(f"----Success", bcolors.OKGREEN)
+    logger.log(f"----Success", bcolors.OKGREEN)
     return sim_samples
 
 
@@ -709,6 +721,7 @@ def main():
     create_directories([genomes_path, outdir, os.path.join(genomes_path, MERGED_GENOMES_PATH)] + [os.path.join(outdir, s) for s in RES_SUBDIRS.values()])
     with open(os.path.join(outdir, 'commandline_args.txt'), 'w') as f:
         json.dump(args.__dict__, f, indent=2)
+    logger.set_file(os.path.join(outdir, "metagenomics_read_simulator.log"))
 
     #Read Kraken2 database report to get the NCBI FTP paths
     ftproutes: List[Dict[str, str]] = getFTPRoutesFromKraken2Report(ftp_paths)
@@ -719,8 +732,8 @@ def main():
                                                 ftproutes, 
                                                 os.path.join(outdir, RES_SUBDIRS['tables']))
     if species2sim.shape[0] == 0:
-        log("Error: no species found in genomes.", bcolors.FAIL)
-        log(str(species2sim.head(3)), bcolors.FAIL)
+        logger.log("Error: no species found in genomes.", bcolors.FAIL)
+        logger.log(str(species2sim.head(3)), bcolors.FAIL)
         exit(1)
 
     #Calculate simulated proportions
