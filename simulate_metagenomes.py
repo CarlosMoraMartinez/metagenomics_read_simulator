@@ -10,7 +10,7 @@ import ftputil
 
 # Example command:
 # python simulate_metagenomes.py -o test1 -p ../data/k2standard_20240112_library_report.tsv -d test_genomes1 -i ../data/remove_tanda2_raw_counts.tsv -s dirichlet_prop -u 5 -m mean_abundance -a 10 -b 20 -x 0.1
-
+# python simulate_metagenomes.py -o testSingle -p ../data/k2standard_20240112_library_report.tsv -d test_genomes1 -i ../data/remove_tanda2_raw_counts.tsv -s single_species -u 5 -m mean_abundance -a 10 -b 2 -x 0 -k 1 -t 10000
 RES_SUBDIRS: List[str] = {'tables':'tables', 'sampled_genomes':'sampled_genomes', 'final_samples':'final_samples'}
 MERGED_GENOMES_PATH: str = 'merged_genomes'
 BASE_URL: str = "ftp.ncbi.nlm.nih.gov"
@@ -65,13 +65,17 @@ def run_command(cmd: str):
         log(f"---FAIL: {cmd}", bcolors.FAIL)
 
 def getFTPRoutesFromKraken2Report(ftp_paths: str) -> List[Dict[str, str]]:
-    """_summary_
+    """Parses the Kraken2 database report and returns a list of dictionaries.
 
     Args:
-        ftp_paths (str): _description_
+        ftp_paths (str): Local path of the Kraken2 database report.
 
     Returns:
-        List[Dict[str, str]]: _description_
+        List[Dict[str, str]]: List of dictionaries. Each entry corresponds to an entry in the original Kraken2 database report. 
+                                Each dictionary contains three fields: 'kingdom', 'species' and 'route'. 
+                                'Kingdom' is used to discriminate between plasmid and chromosomal fasta files.
+                                'species' is used to match against input OTU table, to select interest taxa.
+                                'route' is the path to the genome in the NCBI FTP. 
     """
     log(f"Reading FTP routes from Kraken2 database report", bcolors.BOLD)
     res : List[Dict[str, str]] = []
@@ -91,14 +95,14 @@ def downloadGenomes(ftproutes: List[Dict[str, str]],
                     non_chromosomal: float,
                     rewrite_genomes: bool = True, 
                     url: str = BASE_URL) -> List[Dict[str, str]]:
-    """_summary_
+    """Downloads a list of genomes from the NCBI FTP to local directory.
 
     Args:
-        ftproutes (List[Dict[str, str]]): _description_
-        genomes_path (str): _description_
-        non_chromosomal (float): _description_
-        rewrite_genomes (bool, optional): _description_. Defaults to True.
-        url (str, optional): _description_. Defaults to BASE_URL.
+        ftproutes (List[Dict[str, str]]): List of dictionaries containing FTP routes of genomes.
+        genomes_path (str): Local path to save genomes.
+        non_chromosomal (float): If set to 0, plasmid/viral DNA will not be downloaded.
+        rewrite_genomes (bool, optional): If True, genomes will be downloaded regardless of whether the file already exists. Defaults to True.
+        url (str, optional): Url of the NCBI FTP. Defaults to BASE_URL.
 
     Returns:
         List[Dict[str, str]]: _description_
@@ -136,14 +140,14 @@ def downloadGenomes(ftproutes: List[Dict[str, str]],
 def downloadGenomes_all(speciestab: pd.DataFrame, genomes_path: str, 
                         non_chromosomal: float, rewrite_genomes: bool = True, 
                         url: str = BASE_URL) -> List[Dict[str, str]]:
-    """_summary_
+    """Downloads all genomes for all species in the input tab.
 
     Args:
-        speciestab (pd.DataFrame): _description_
-        genomes_path (str): _description_
-        non_chromosomal (float): _description_
-        rewrite_genomes (bool, optional): _description_. Defaults to True.
-        url (str, optional): _description_. Defaults to BASE_URL.
+        speciestab (pd.DataFrame): Input table with taxa in rows and columns with FTP routes.
+        genomes_path (str): Path to store the genomes permanently. Will create a separate subdirectory for each species.
+        non_chromosomal (float): If it is set to 0, plasmidid/Viral genomes will not be downloaded.
+        rewrite_genomes (bool, optional): If True, genomes will be downloaded regardless of whether the file already exists. Defaults to True.
+        url (str, optional): Url of the NCBI FTP. Defaults to BASE_URL.
 
     Returns:
         List[Dict[str, str]]: _description_
@@ -159,20 +163,30 @@ def downloadGenomes_all(speciestab: pd.DataFrame, genomes_path: str,
     log("----All downloads finished.", bcolors.OKGREEN)
     return speciestab
 
-def find_genomes(taxon: str, ftproutes: List[Dict[str, str]]) -> List[str]:
-    """May return duplicated genomes if in the input database the same fasta is stored as 'bacteria' and 'plasmid', for instance. Deduplicate later."""
+def find_genomes(taxon: str, ftproutes: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Matches species name from input OTU table with species names from the Kraken2 report.
+    May return duplicated genomes if in the input database the same fasta is stored as 'bacteria' and 'plasmid', for instance. Deduplicate later.
+
+    Args:
+        taxon (str): taxon name from input OTU table to query against Kraken2 database report.
+        ftproutes (List[Dict[str, str]]): Parsed kraken2 database report as returned by 'getFTPRoutesFromKraken2Report'.
+
+    Returns:
+        List[Dict[str, str]]: Elements in ftproutes matching input taxon.
+    """
     return [genome for genome in ftproutes if taxon in genome['species']]
 
 def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: str = './') -> pd.DataFrame:
-    """_summary_
+    """Reads OTU table/table with target species proportion and merges it with information from the Kraken2 database report, 
+    including NCBI FTP routes for each species reference genomes. 
 
     Args:
-        input_table (str): _description_
-        ftproutes (List[Dict[str, str]]): _description_
-        outdir (str, optional): _description_. Defaults to './'.
+        input_table (str): input table. The first column must contain a list of taxa, and the rest of columns can be abundances or proportions of different samples.
+        ftproutes (List[Dict[str, str]]): Parsed kraken2 database report as returned by 'getFTPRoutesFromKraken2Report'.
+        outdir (str, optional): Output directory. Defaults to './'.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: Dataframe in the same format as input_table, with columns for the ftp routes for each taxon.
     """
     log(f"Reading species table to simulate", bcolors.BOLD)
 
@@ -194,13 +208,14 @@ def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: s
     return present_species
 
 def calculateAbundances(species2sim: pd.DataFrame) -> pd.DataFrame:
-    """_summary_
+    """Starting from an OTU table, it calculates 
 
     Args:
-        species2sim (pd.DataFrame): _description_
+        species2sim (pd.DataFrame): input data. OTU table with abundances in different samples or single column with proportions. 
+        It calculates proportions for each sample and also mean and median proportions, and prevalence. 
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: Input table with additional columns: mean_abundance, median_abundance and prevalence
     """
     if species2sim.shape[1] > 4:
         sampledata = species2sim.drop(['taxon', 'local_path', 'num_genomes'], axis=1).apply(lambda x: x/sum(x))
@@ -218,13 +233,13 @@ def calculateAbundances(species2sim: pd.DataFrame) -> pd.DataFrame:
     return sampledata
 
 def simulate_dirichlet_samples(props: np.array, size: int, n_samples: int, params: str) -> pd.DataFrame:
-    """_summary_
+    """Generates a series of multinomial distributions from a Dirichlet distribution parameterized with an input distribution and an 'alpha' value.
 
     Args:
-        props (np.array): _description_
-        size (int): _description_
-        n_samples (int): _description_
-        params (str): _description_
+        props (np.array): Input multinomial distribution, i.e., species proportions. If size 0, all input values for the Dirichlet are set to alpha.
+        size (int): Used only if input proportions array is of length 0. Generates samples of this size, starting from a multinomial with equal probabilities.
+        n_samples (int): Number of distributions to sample (i.e., number of random samples to take from the Dirichlet distribution).
+        params (str): Alpha to parameterize the dirichlet distribution
 
     Returns:
         pd.DataFrame: _description_
@@ -238,14 +253,14 @@ def simulate_dirichlet_samples(props: np.array, size: int, n_samples: int, param
     return distribs_df
 
 def simulate_single_species(top_n_species: int, taxanames: List[str]) -> pd.DataFrame:
-    """_summary_
+    """Generate one sample per input species, each with only one species.
 
     Args:
-        top_n_species (int): _description_
-        taxanames (List[str]): _description_
+        top_n_species (int): Number of species.
+        taxanames (List[str]): List of species names.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: Data frame with species proportion in each sample. Should be all zeroes and ones in the diagonal. 
     """
     distribs: np.array = np.diag(np.ones(top_n_species)) 
     taxanames = [re.sub(r'[^a-zA-Z0-9\_]', '', s) for s in taxanames]
@@ -254,16 +269,17 @@ def simulate_single_species(top_n_species: int, taxanames: List[str]) -> pd.Data
 
 def calculateSpeciesProportion(species2sim: pd.DataFrame, sym_mode: str, top_n_species: int, mode_select_species: str, 
                                dstr_args: str, dstr_reps: int, outdir: str = "./") -> pd.DataFrame:   
-    """_summary_
+    """Calculates the species proportion in each target distribution. 
+    Depending on 'sym_mode', returns one uniform/equal to input proportions, or many generated distributions.
 
     Args:
-        species2sim (pd.DataFrame): _description_
-        sym_mode (str): _description_
-        top_n_species (int): _description_
-        mode_select_species (str): _description_
-        dstr_args (str): _description_
-        dstr_reps (int): _description_
-        outdir (str, optional): _description_. Defaults to "./".
+        species2sim (pd.DataFrame): OTU table or table specifying proportions for each taxa
+        sym_mode (str): One of 'unif', 'prop', 'dirichlet_unif', 'dirichlet_prop' or 'single_species'. Different modes to generate sample distributions.
+        top_n_species (int): Select the top 'n' taxa from the input table 'species2sim'.
+        mode_select_species (str): One of 'mean_abundance', 'median_abundance', 'prevalence'. Sort samples basing on this variable in order to select the top 'n'.
+        dstr_args (str): Additional arguments to sampling distribution. Alpha in dirichlet distribution. It is converted to float. 
+        dstr_reps (int): Number of distributions to sample. Only used if 'dirichlet_unif' or 'dirichlet_prop' are used.
+        outdir (str, optional): Output directory. Defaults to "./".
 
     Returns:
         pd.DataFrame: _description_
@@ -349,7 +365,7 @@ def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List
 def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool, 
                  outdir: str, non_chromosomal: float) -> pd.DataFrame:
     """Generates concatenated genome files for species with more than one reference genome. 
-    Depending on the 'non_chromosomal' argument generates a single file with all the sequences from a given species (non_chromosomal=-1),
+    Depending on the 'non_chromosomal' argument generates a single file with all the sequences from a given species (non_chromosomal=2),
     a file with only the chromosomal fasta (non_chromosomal=0) or a file with the chromosomal and a file with the plasmid/viral sequences 
     (non_chromosomal between 0 and 1). Modifies the species_proportion dataframe with three columns that include the paths for the three 
     possible files generated. 
@@ -411,25 +427,25 @@ def wgsim_get_sample(input_fasta: str, output_fastq: str,
                      indel_fraction: float, prob_indel_ext: float,
                      rewrite_sim_fastq: bool,
                      seed: int) -> Tuple[str, str]:
-    """_summary_
+    """Creates and runs wgsim command to simulate a given number of reads from an input fasta.
 
     Args:
-        input_fasta (str): _description_
-        output_fastq (str): _description_
-        num_reads (int): _description_
-        read_length_r1 (int): _description_
-        read_length_r2 (int): _description_
-        fragment_length (int): _description_
-        fragment_sdesv (int): _description_
-        base_error_rate (float): _description_
-        mutation_rate (float): _description_
-        indel_fraction (float): _description_
-        prob_indel_ext (float): _description_
-        rewrite_sim_fastq (bool): _description_
-        seed (int): _description_
+        input_fasta (str): Optionally compressed fasta file to simulate reads from. 
+        output_fastq (str): Name of the output fastq files.
+        num_reads (int): Number of reads to generate. Read wgsim docs.
+        read_length_r1 (int): Length of read 1 in each read pair. Read wgsim docs.
+        read_length_r2 (int): Length of read 2 in each read pair. Read wgsim docs.
+        fragment_length (int): Read wgsim docs.
+        fragment_sdesv (int): Read wgsim docs.
+        base_error_rate (float): Read wgsim docs.
+        mutation_rate (float): Read wgsim docs.
+        indel_fraction (float): Read wgsim docs
+        prob_indel_ext (float): Read wgsim docs.
+        rewrite_sim_fastq (bool): Rewrite output file if it exists.
+        seed (int): Random seed for wgsim.
 
     Returns:
-        Tuple[str, str]: _description_
+        Tuple[str, str]: Names of the two compressed fastq files generated. 
     """
     r1: str = f"{output_fastq}_R1.fastq"
     r2: str = f"{output_fastq}_R2.fastq"
@@ -467,28 +483,29 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                                       seed: int, n_samples: int,
                                       non_chromosomal: float, rewrite_sim_fastq: bool,
                                       n_threads: int) -> pd.DataFrame:
-    """_summary_
+    """ Calls wgsim for each sample distribution, for each repetition, for each species. 
+    Depending on 'non_chromosomal' value, calls wgsim separately for chromosomal and plasmid fasta.
 
     Args:
-        species_proportion (pd.DataFrame): _description_
-        outdir (str): _description_
-        total_reads (int): _description_
-        read_length_r1 (int): _description_
-        read_length_r2 (int): _description_
-        fragment_length (int): _description_
-        fragment_sdesv (int): _description_
-        base_error_rate (float): _description_
-        mutation_rate (float): _description_
-        indel_fraction (float): _description_
-        prob_indel_ext (float): _description_
-        seed (int): _description_
-        n_samples (int): _description_
-        non_chromosomal (float): _description_
-        rewrite_sim_fastq (bool): _description_
-        n_threads (int): _description_
+        species_proportion (pd.DataFrame): Data Frame with taxa in rows and sample distributions, as well as paths to each species merged fasta, in columns.
+        outdir (str): Output directory. 
+        total_reads (int): Total number of reads per sample.
+        read_length_r1 (int): Length of read 1 in each read pair. Read wgsim docs.
+        read_length_r2 (int): Length of read 2 in each read pair. Read wgsim docs.
+        fragment_length (int): Read wgsim docs.
+        fragment_sdesv (int): Read wgsim docs.
+        base_error_rate (float): Read wgsim docs.
+        mutation_rate (float): Read wgsim docs.
+        indel_fraction (float): Read wgsim docs.
+        prob_indel_ext (float): Read wgsim docs.
+        seed (int): Starting random seed for wgsim. It will change automatically according to some function of more than one replicate is generated. 
+        n_samples (int): Number of replicates per sample distribution.
+        non_chromosomal (float): If it is between 0 and 1, indicates the proportion of plasmidic reads in each species. If it is 2, reads are generated from a fasta with merged chromosomal and plasmidic sequences.
+        rewrite_sim_fastq (bool): Rewrite output files if they exist.
+        n_threads (int): Not used.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: Data frame with data for simulated samples, including paths to the separate fastq for each species.
     """
     log(f"Simulating reads for each sample, separately by species.", bcolors.BOLD)
     sample_regex: re.Pattern = re.compile('^D[0-9]+_')
@@ -512,6 +529,9 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
                                       'species_r2': []}, ignore_index=True)
             log(f"Generating sample {sample}, rep {rep}", bcolors.BOLD)
             for i, row in species_proportion.iterrows():
+                if row[sample] == 0:
+                    log(f"----Skipping sample {sample}, rep {rep}, species {row.taxon} because proportion is {row[sample]}", bcolors.WARNING)
+                    continue
                 if non_chromosomal == 2:
                     num_reads: int = int(round(total_reads*row[sample]))
                     fastq_name: str = os.path.join(sample_dir, f"{full_sample_name}_{row.taxon}_N{num_reads}_merged_all")
