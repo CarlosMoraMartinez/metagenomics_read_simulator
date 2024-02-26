@@ -513,8 +513,9 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
     sample: str
     samples_generated: pd.DataFrame = pd.DataFrame(columns = ['sample_distr', 'sample_rep', 'full_sample_name', 'seed','sample_dir', 'species_r1', 'species_r2'])
     sim_files: Tuple[str, str]
+    sample_seed = seed
     for sample in sample_names:
-        sample_seed = seed
+        #sample_seed = seed
         rep: int
         for rep in range(1, n_samples + 1):
             full_sample_name: str = f"{sample}_rep{rep}_seed{sample_seed}"
