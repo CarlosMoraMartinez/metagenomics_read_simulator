@@ -42,7 +42,7 @@ def log(msg: str, col: bcolors = bcolors.BOLD):
     print(col + msg + bcolors.ENDC)
 
 def create_directories(dirlist: List[str]) -> None:
-    log(f"Creating directories", bcolors.BOLD)
+    log("Creating directories", bcolors.BOLD)
     for d in dirlist:
         if not os.path.isdir(d):
             try:
@@ -410,7 +410,7 @@ def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool,
     return species_proportion
 
 def updateSeed(seed:int = DEFAULT_SEED):
-    """_summary_
+    """Generates a random number which will be used as seed for wgsim
 
     Args:
         seed (int, optional): _description_. Defaults to DEFAULT_SEED.
@@ -418,7 +418,7 @@ def updateSeed(seed:int = DEFAULT_SEED):
     Returns:
         _type_: _description_
     """
-    return 3*seed-1
+    return int(np.random.uniform(low=1, high=10000))
 
 def wgsim_get_sample(input_fasta: str, output_fastq: str,
                      num_reads: int, read_length_r1: int, read_length_r2: int, 
@@ -513,7 +513,8 @@ def simulate_reads_by_species(species_proportion: pd.DataFrame, outdir: str,
     sample: str
     samples_generated: pd.DataFrame = pd.DataFrame(columns = ['sample_distr', 'sample_rep', 'full_sample_name', 'seed','sample_dir', 'species_r1', 'species_r2'])
     sim_files: Tuple[str, str]
-    sample_seed = seed
+    np.random.seed(seed)
+    sample_seed = updateSeed(seed)
     for sample in sample_names:
         #sample_seed = seed
         rep: int
