@@ -53,6 +53,9 @@ class Logger:
 
 logger = Logger()
 
+def remove_special_characters(name: str):
+    return re.sub(r'[^a-zA-Z0-9\_\. ]', '', name)
+
 def create_directories(dirlist: List[str]) -> None:
     logger.log("Creating directories", bcolors.BOLD)
     for d in dirlist:
@@ -60,7 +63,8 @@ def create_directories(dirlist: List[str]) -> None:
             try:
                 os.mkdir(d)
                 logger.log(f"----{d} created", bcolors.OKGREEN)
-            except:
+            except Exception as e:
+                logger.log(e, bcolors.FAIL)
                 logger.log(f"----Unable to create directory: {d}", bcolors.FAIL)
         else:
             logger.log(f"----{d} already exists", bcolors.WARNING)
@@ -73,7 +77,8 @@ def run_command(cmd: str):
             logger.log(f"---Success: {cmd}", bcolors.OKGREEN)
         else:
             logger.log(f"---FAIL {exitcode}: {cmd}", bcolors.FAIL)
-    except:
+    except Exception as e:
+        logger.log(e, bcolors.FAIL)
         logger.log(f"---FAIL: {cmd}", bcolors.FAIL)
 
 def getFTPRoutesFromKraken2Report(ftp_paths: str) -> List[Dict[str, str]]:
@@ -98,6 +103,7 @@ def getFTPRoutesFromKraken2Report(ftp_paths: str) -> List[Dict[str, str]]:
                 continue
             assert l[1].startswith(">"), f"----Error: Species does not start with '>': {l[1]}"
             assert l[2].startswith("ftp"), f"----Error: Route does not start with 'ftp': {l[2]}"
+            l[1] = remove_special_characters(l[1])
             res.append(dict([(i, j) for i, j in zip(["kingdom", "species", "route"], l)])) 
     logger.log(f"----Success", bcolors.OKGREEN)
     return res
@@ -144,7 +150,8 @@ def downloadGenomes(ftproutes: List[Dict[str, str]],
             ftp_host.download(remote_path, new_path)
             genome["downloaded"] = "new"
             logger.log("----download finished.", bcolors.OKGREEN)
-        except:
+        except Exception as e:
+            logger.log(e, bcolors.FAIL)
             genome["downloaded"] = "failed"
             logger.log("----download FAILED.", bcolors.FAIL)
     return ftproutes
@@ -204,6 +211,7 @@ def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: s
 
     species2sim: pd.DataFrame = pd.read_csv(input_table, sep='\t')    
     species2sim.columns = species2sim.columns.str.replace(species2sim.columns[0], "taxon")
+    species2sim.taxon = [remove_special_characters(i) for i in species2sim.taxon]
 
     logger.log(f"----Matching with genomes", bcolors.WARNING)
     species2sim['local_path'] = species2sim.apply(lambda x: find_genomes(x.taxon.replace('_', ' '), ftproutes), axis=1)
@@ -216,6 +224,7 @@ def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: s
     tab2write['local_path'] = tab2write.apply(lambda x: '|'.join([str(i) for i in x.local_path]), axis=1)
     tab2write.to_csv(os.path.join(outdir, 'all_species_with_ftp_path.tsv'), sep='\t')
 
+    logger.log(f"----Matched {present_species.shape[0]} and didn't find {absent_species.shape[0]} out of {species2sim.shape[0]}", bcolors.WARNING)
     logger.log(f"----Success", bcolors.OKGREEN)
     return present_species
 
