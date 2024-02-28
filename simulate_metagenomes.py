@@ -24,6 +24,7 @@ DEFAULT_INDEL_FRACTION: float = 0.15
 DEFAULT_PROB_INDEL_EXT: float = 0.3
 DEFAULT_SEED: int = 123
 
+NON_CHROMOSOMAL_MERGE: int = 2
 CHROMOSOMAL_NAMES = ['bacteria', 'archaea']
 OTHER_ALLOWED = ['plasmid', 'viral', 'UniVec_Core']
 
@@ -195,7 +196,7 @@ def find_genomes(taxon: str, ftproutes: List[Dict[str, str]]) -> List[Dict[str, 
     """
     return [genome for genome in ftproutes if taxon in genome['species']]
 
-def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: str = './') -> pd.DataFrame:
+def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: str = './', non_chromosomal: float = 0) -> pd.DataFrame:
     """Reads OTU table/table with target species proportion and merges it with information from the Kraken2 database report, 
     including NCBI FTP routes for each species reference genomes. 
 
@@ -216,10 +217,16 @@ def readSpecies2Sim(input_table: str, ftproutes: List[Dict[str, str]], outdir: s
     logger.log(f"----Matching with genomes", bcolors.WARNING)
     species2sim['local_path'] = species2sim.apply(lambda x: find_genomes(x.taxon.replace('_', ' '), ftproutes), axis=1)
     species2sim['num_genomes'] = species2sim.apply(lambda x: len(x.local_path), axis=1)
+    species2sim['num_genomes_chrom'] = species2sim.apply(lambda x: len([i for i in x.local_path if i['kingdom'] in CHROMOSOMAL_NAMES]), axis=1)
 
-    absent_species = species2sim.loc[species2sim['num_genomes'] == 0]
+    filter_by: str = 'num_genomes' if non_chromosomal in [NON_CHROMOSOMAL_MERGE, 1] else 'num_genomes_chrom'
+    logger.log(f"----Filtering present genomes by {filter_by}", bcolors.WARNING)
+ 
+    absent_species = species2sim.loc[species2sim[filter_by] == 0]
+    present_species = species2sim.loc[species2sim[filter_by] > 0]
     absent_species.to_csv(os.path.join(outdir, 'absent_species.tsv'), sep='\t')
-    present_species = species2sim.loc[species2sim['num_genomes'] > 0]
+    present_species.to_csv(os.path.join(outdir, 'present_species.tsv'), sep='\t')
+
     tab2write = species2sim.copy()
     tab2write['local_path'] = tab2write.apply(lambda x: '|'.join([str(i) for i in x.local_path]), axis=1)
     tab2write.to_csv(os.path.join(outdir, 'all_species_with_ftp_path.tsv'), sep='\t')
@@ -367,7 +374,7 @@ def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List
     files_all: Set[str] = set()
     files_chr: Set[str] = set()
     files_plas: Set[str] = set()
-    if non_chromosomal == 2:
+    if non_chromosomal == NON_CHROMOSOMAL_MERGE:
         files_all = set(map(lambda d: d['local_path'], row.local_path))
         files_chr = set()
         files_plas = set()
@@ -739,7 +746,8 @@ def main():
     #Read species to simulate and match with genomes in NCBI FTP
     species2sim: pd.DataFrame = readSpecies2Sim(input_table, 
                                                 ftproutes, 
-                                                os.path.join(outdir, RES_SUBDIRS['tables']))
+                                                os.path.join(outdir, RES_SUBDIRS['tables']),
+                                                non_chromosomal=non_chromosomal)
     if species2sim.shape[0] == 0:
         logger.log("Error: no species found in genomes.", bcolors.FAIL)
         logger.log(str(species2sim.head(3)), bcolors.FAIL)
