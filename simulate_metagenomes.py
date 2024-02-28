@@ -390,6 +390,29 @@ def getFiles2MergeSingleSpecies(row: pd.Series, non_chromosomal: float) ->  List
     #print(files2generate)
     return files2generate
 
+def zcat_manyfiles(localfiles: List[str], merged_fname: str, rewrite: bool) -> None:
+    """
+    This is much slower than just doing zcat on all the files at once, but it is less prone to error.
+    """
+    compressed_merged_fname: str = merged_fname + '.gz'
+    if os.path.isfile(compressed_merged_fname) and not rewrite:
+        logger.log(f"----{merged_fname} already exists, skipping merge.", bcolors.OKBLUE)
+        return compressed_merged_fname
+    elif os.path.isfile(compressed_merged_fname):
+        logger.log(f"----{compressed_merged_fname} already exists, overwritting.", bcolors.WARNING)
+        cmd: str = f"rm {compressed_merged_fname}"
+        run_command(cmd)
+    if os.path.isfile(merged_fname):
+        logger.log(f"----{merged_fname} (uncompressed) already exists, removing.", bcolors.WARNING)
+        cmd: str = f"rm {merged_fname}"
+        run_command(cmd)
+    for localf in localfiles:
+        cmd: str = f"zcat {localf} >> {merged_fname}"
+        run_command(cmd)
+    cmd = f"pigz {merged_fname}"
+    run_command(cmd)
+    return compressed_merged_fname
+
 def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool, 
                  outdir: str, non_chromosomal: float) -> pd.DataFrame:
     """Generates concatenated genome files for species with more than one reference genome. 
@@ -425,15 +448,8 @@ def mergeGenomes(species_proportion: pd.DataFrame, rewrite_genomes: bool,
                 logger.log(f"----{fname} has only 1 filename: {list(localfiles)[0]}. Skipping merge.", bcolors.OKBLUE)
                 species_proportion.loc[i, fname] = list(localfiles)[0]
                 continue
-            merged_fname: str = os.path.join(outdir, f"{row.taxon}_{fname}.fna.gz")
-            species_proportion.loc[i, fname] = merged_fname
-            if os.path.isfile(merged_fname) and not rewrite_genomes:
-                logger.log(f"----{merged_fname} already exists, skipping merge.", bcolors.OKBLUE)
-                continue
-            elif os.path.isfile(merged_fname):
-                logger.log(f"----{merged_fname} already exists, overwritting.", bcolors.WARNING)
-            cmd: str = f"zcat {' '.join(localfiles)} | pigz -c > {merged_fname}"
-            run_command(cmd)
+            merged_fname: str = os.path.join(outdir, f"{row.taxon}_{fname}.fna")
+            species_proportion.loc[i, fname] = zcat_manyfiles(localfiles, merged_fname, rewrite_genomes)
     logger.log(f"----Success", bcolors.OKGREEN)
     return species_proportion
 
