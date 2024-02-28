@@ -39,5 +39,14 @@ python metagenomics_read_simulator/simulate_metagenomes.py -o unif100 -p $K2LIB 
 
 python metagenomics_read_simulator/simulate_metagenomes.py -o prop100 -p $K2LIB -d $GENOMEDIR -i $INTAB -s dirichlet_prop -u 100 -m mean_abundance -a 10 -b 20 -x 0 -k 1 -t $NREADS
 
+python metagenomics_read_simulator/simulate_metagenomes.py -o single50 -p $K2LIB -d $GENOMEDIR -i $INTAB -s single_species -u 50 -m mean_abundance -a 10 -b 1 -x 0 -k 1 -t 5000000
 
-#python metagenomics_read_simulator/simulate_metagenomes.py -o single50 -p $K2LIB -d $GENOMEDIR -i $INTAB -s single_species -u 50 -m mean_abundance -a 10 -b 1 -x 0 -k 1 -t 5000000
+#With error rate
+
+python metagenomics_read_simulator/simulate_metagenomes.py -o e001unif10 -p $K2LIB -d $GENOMEDIR -i $INTAB -s dirichlet_unif -u 10 -m mean_abundance -a 10 -b 20 -x 0 -k 1 -t $NREADS -E 0.001
+
+python metagenomics_read_simulator/simulate_metagenomes.py -o e001unif100 -p $K2LIB -d $GENOMEDIR -i $INTAB -s dirichlet_unif -u 100 -m mean_abundance -a 10 -b 20 -x 0 -k 1 -t $NREADS -E 0.001
+
+python metagenomics_read_simulator/simulate_metagenomes.py -o e001prop10 -p $K2LIB -d $GENOMEDIR -i $INTAB -s dirichlet_prop -u 10 -m mean_abundance -a 10 -b 20 -x 0 -k 1 -t $NREADS -E 0.001
+
+python metagenomics_read_simulator/simulate_metagenomes.py -o e001prop100 -p $K2LIB -d $GENOMEDIR -i $INTAB -s dirichlet_prop -u 100 -m mean_abundance -a 10 -b 20 -x 0 -k 1 -t $NREADS -E 0.001
