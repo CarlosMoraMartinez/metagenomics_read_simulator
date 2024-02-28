@@ -46,9 +46,9 @@ class Logger:
     def log2file(self, msg: str):
         if self.logname is not None:
             with open(self.logname, "a") as fo:
-                fo.write(msg + '\n')
+                fo.write(str(msg) + '\n')
     def log(self, msg: str, col: bcolors = bcolors.BOLD) -> None:
-        print(col + msg + bcolors.ENDC)
+        print(col + str(msg) + bcolors.ENDC)
         self.log2file(msg)
 
 logger = Logger()
