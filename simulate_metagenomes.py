@@ -816,6 +816,7 @@ def main():
     sim_sample_df = merge_simulated_samples(sim_sample_df, outdir = os.path.join(outdir, RES_SUBDIRS['final_samples']))
 
     sim_sample_df.to_csv(os.path.join(outdir, RES_SUBDIRS['tables'], "species_tab_sim_final.tsv"), sep='\t')
+    logger.log("--Finished pipeline", bcolors.OKGREEN)
   
 if __name__ == "__main__":
     main()
